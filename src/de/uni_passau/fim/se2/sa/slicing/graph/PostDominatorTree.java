@@ -118,7 +118,8 @@ public class PostDominatorTree extends Graph {
     for (Map.Entry<Node, Node> entry1 : idom.entrySet()) {
       Node dominated = entry1.getKey();
       Node dominator = entry1.getValue();
-      tree.addEdge(dominated, dominator);
+      tree.addEdge(dominator, dominated);
+
     }
 
     return tree;
