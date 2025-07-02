@@ -28,23 +28,22 @@ public class PostDominatorTree extends Graph {
   @Override
   public ProgramGraph computeResult() {
     ProgramGraph reversedGraph = reverseGraph(cfg);
-    Optional<Node> entryNode = reversedGraph.getEntry();
-    if (entryNode.isEmpty()) {
+    Optional<Node> entryOptional = reversedGraph.getEntry();
+    if (entryOptional.isEmpty()) {
       return new ProgramGraph();
     }
-    Node entry = entryNode.get();
-
-    Map<Node, Set<Node>> dom = new HashMap<>();
-    Collection<Node> nodes = reversedGraph.getNodes();
+    Node entry = entryOptional.get();
+    Map<Node, Set<Node>> D = new HashMap<>();
 
     Set<Node> entryDom = new LinkedHashSet<>();
     entryDom.add(entry);
-    dom.put(entry, entryDom);
+    D.put(entry, entryDom);
 
+    Collection<Node> nodes = reversedGraph.getNodes();
     for (Node n : nodes) {
       if (!n.equals(entry)) {
-        Set<Node> allNodesDom = new LinkedHashSet<>(nodes);
-        dom.put(n, allNodesDom);
+        Set<Node> allNodes = new LinkedHashSet<>(nodes);
+        D.put(n, allNodes);
       }
     }
 
@@ -57,25 +56,29 @@ public class PostDominatorTree extends Graph {
           continue;
         }
 
-        Set<Node> currDom = dom.get(n);
-        Set<Node> newDom = new LinkedHashSet<>();
-        newDom.add(n);
+        Set<Node> currentDominators = D.get(n);
 
-        Collection<Node> preds = reversedGraph.getPredecessors(n);
-        if (!preds.isEmpty()) {
-          Set<Node> intersection = new LinkedHashSet<>(dom.get(preds.iterator().next()));
-          for (Node p : preds) {
-            intersection.retainAll(dom.get(p));
+        Set<Node> newDominators = new LinkedHashSet<>();
+        newDominators.add(n);
+
+        Collection<Node> predecessors = reversedGraph.getPredecessors(n);
+        if (!predecessors.isEmpty()) {
+          Set<Node> intersection = new LinkedHashSet<>(D.get(predecessors.iterator().next()));
+
+          for (Node p : predecessors) {
+            intersection.retainAll(D.get(p));
           }
-          newDom.addAll(intersection);
+
+          newDominators.addAll(intersection);
         }
 
-        if (!currDom.equals(newDom)) {
-          dom.put(n, newDom);
+        if (!currentDominators.equals(newDominators)) {
+          D.put(n, newDominators);
           changed = true;
         }
       }
     }
+
 
     Map<Node, Node> idom = new HashMap<>();
     for (Node n : nodes) {
@@ -83,14 +86,14 @@ public class PostDominatorTree extends Graph {
         continue;
       }
 
-      Set<Node> strictDom = new LinkedHashSet<>(dom.get(n));
+      Set<Node> strictDom = new LinkedHashSet<>(D.get(n));
       strictDom.remove(n);
 
       Node immDom = null;
       for (Node candidate : strictDom) {
         boolean isImm = true;
         for (Node other : strictDom) {
-          if (!candidate.equals(other) && dom.get(candidate).contains(other)) {
+          if (!candidate.equals(other) && D.get(candidate).contains(other)) {
             isImm = false;
             break;
           }
