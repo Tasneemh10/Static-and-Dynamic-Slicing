@@ -90,18 +90,19 @@ public class PostDominatorTree extends Graph {
       strictDom.remove(n);
 
       Node immDom = null;
+      Set<Node> candidateSet = new LinkedHashSet<>(strictDom);
+
+      // Remove dominated candidates (keep dominators)
       for (Node candidate : strictDom) {
-        boolean isImm = true;
         for (Node other : strictDom) {
           if (!candidate.equals(other) && D.get(candidate).contains(other)) {
-            isImm = false;
-            break;
+            candidateSet.remove(other);
           }
         }
-        if (isImm) {
-          immDom = candidate;
-          break;
-        }
+      }
+
+      if (candidateSet.size() == 1) {
+        immDom = candidateSet.iterator().next();
       }
 
       if (immDom != null) {
