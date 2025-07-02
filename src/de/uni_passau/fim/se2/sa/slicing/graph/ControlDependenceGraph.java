@@ -74,7 +74,7 @@ public class ControlDependenceGraph extends Graph {
 
       for (Node node : cdg.getNodes()) {
         if (!node.equals(entry) && cdg.getPredecessors(node).isEmpty()) {
-          cdg.addEdge(node, entry);
+          //cdg.addEdge(node, entry);
         }
       }
     }
