@@ -14,6 +14,7 @@ import org.objectweb.asm.tree.analysis.AnalyzerException;
 
 /** Provides a simple data-flow analysis. */
 class DataFlowAnalysis {
+  private static final DefUseAnalyzer ANALYZER = new DefUseAnalyzer();
 
   private DataFlowAnalysis() {}
 
@@ -30,10 +31,9 @@ class DataFlowAnalysis {
       String pOwningClass, MethodNode pMethodNode, AbstractInsnNode pInstruction)
       throws AnalyzerException {
     try {
-      DefUseAnalyzer analyzer = new DefUseAnalyzer();
-      analyzer.analyze(pOwningClass, pMethodNode);
+      ANALYZER.analyze(pOwningClass, pMethodNode);
 
-      DefUseFrame[] frames = analyzer.getDefUseFrames();
+      DefUseFrame[] frames = ANALYZER.getDefUseFrames();
 
       Set<Variable> usedVariables = new HashSet<>();
 
@@ -76,6 +76,27 @@ class DataFlowAnalysis {
   static Collection<Variable> definedBy(
       String pOwningClass, MethodNode pMethodNode, AbstractInsnNode pInstruction)
       throws AnalyzerException {
-    throw new UnsupportedOperationException("Implement me");
+    try {
+      ANALYZER.analyze(pOwningClass, pMethodNode);
+
+      DefUseFrame[] frames = ANALYZER.getDefUseFrames();
+
+      Set<Variable> definedVariables = new HashSet<>();
+
+      int instructionIndex = findInstructionIndex(pMethodNode, pInstruction);
+      if (instructionIndex == -1 || instructionIndex >= frames.length) {
+        return definedVariables; // Instruction not found or out of bounds
+      }
+
+      DefUseFrame frame = frames[instructionIndex];
+      Set<Variable> definitions = frame.getDefinitions();
+
+      definedVariables.addAll(definitions);
+
+      return definedVariables;
+
+    } catch (Exception e) {
+      throw new AnalyzerException(null, "Error analyzing variable definitions", e);
+    }
   }
 }
