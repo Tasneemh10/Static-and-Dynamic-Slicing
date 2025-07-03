@@ -1,7 +1,13 @@
 package de.uni_passau.fim.se2.sa.slicing.graph;
 
+import br.usp.each.saeg.asm.defuse.DefUseAnalyzer;
+import br.usp.each.saeg.asm.defuse.DefUseChain;
+import br.usp.each.saeg.asm.defuse.DefUseFrame;
 import br.usp.each.saeg.asm.defuse.Variable;
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
+
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.analysis.AnalyzerException;
@@ -23,7 +29,39 @@ class DataFlowAnalysis {
   static Collection<Variable> usedBy(
       String pOwningClass, MethodNode pMethodNode, AbstractInsnNode pInstruction)
       throws AnalyzerException {
-    throw new UnsupportedOperationException("Implement me");
+    try {
+      DefUseAnalyzer analyzer = new DefUseAnalyzer();
+      analyzer.analyze(pOwningClass, pMethodNode);
+
+      DefUseFrame[] frames = analyzer.getDefUseFrames();
+
+      Set<Variable> usedVariables = new HashSet<>();
+
+      int instructionIndex = findInstructionIndex(pMethodNode, pInstruction);
+      if (instructionIndex == -1 || instructionIndex >= frames.length) {
+        return usedVariables;
+      }
+
+      DefUseFrame frame = frames[instructionIndex];
+      Set<Variable> uses = frame.getUses();
+
+      usedVariables.addAll(uses);
+
+      return usedVariables;
+
+    } catch (Exception e) {
+      throw new AnalyzerException(null, "Error analyzing variable uses", e);
+    }
+  }
+
+  private static int findInstructionIndex(MethodNode methodNode, AbstractInsnNode instruction) {
+    AbstractInsnNode[] instructions = methodNode.instructions.toArray();
+    for (int i = 0; i < instructions.length; i++) {
+      if (instructions[i] == instruction) {
+        return i;
+      }
+    }
+    return -1;
   }
 
   /**
