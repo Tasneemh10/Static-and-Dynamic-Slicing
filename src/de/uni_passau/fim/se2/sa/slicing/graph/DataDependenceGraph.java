@@ -154,21 +154,23 @@ public class DataDependenceGraph extends Graph {
     }
   }
 
-
   private boolean sameVariable(Variable v1, Variable v2) {
-    return Objects.equals(v1, v2) &&
-            Objects.equals(v1.type, v2.type);
+    if (v1 == v2) {
+      return true;
+    }
+
+
+    return Objects.equals(v1.type, v2.type);
   }
+
 
   private Node findDefiningNode(Variable targetVar, Map<Node, Set<Variable>> nodeToDefinitions) {
     for (Map.Entry<Node, Set<Variable>> entry : nodeToDefinitions.entrySet()) {
       Node node = entry.getKey();
       Set<Variable> definedVars = entry.getValue();
 
-      for (Variable definedVar : definedVars) {
-        if (sameVariable(targetVar, definedVar)) {
-          return node;
-        }
+      if (definedVars.contains(targetVar)) {
+        return node;
       }
     }
     return null;
