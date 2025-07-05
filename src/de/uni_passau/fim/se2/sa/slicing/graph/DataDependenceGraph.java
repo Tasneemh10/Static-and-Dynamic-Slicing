@@ -103,7 +103,7 @@ public class DataDependenceGraph extends Graph {
             Set<Variable> reachingDefs = inFacts.get(useNode);
 
             for (Variable reachingDef : reachingDefs) {
-              if (usedVar.equals(reachingDef) || Objects.equals(usedVar.type, reachingDef.type)) {
+              if (Objects.equals(usedVar.type, reachingDef.type)) {
                 Node defNode = variableToDefNode.get(reachingDef);
                 if (defNode != null) {
                   ddg.addEdge(defNode, useNode);
@@ -136,7 +136,7 @@ public class DataDependenceGraph extends Graph {
 
         result.removeIf(definition -> {
           for (Variable definedVar : definedVars) {
-            if (definition.equals(definedVar) || Objects.equals(definition.type, definedVar.type)) {
+            if (Objects.equals(definition.type, definedVar.type)) {
               return true;
             }
           }
