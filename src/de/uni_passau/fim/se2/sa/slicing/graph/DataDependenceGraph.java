@@ -40,6 +40,7 @@ public class DataDependenceGraph extends Graph {
     if (cfg == null || methodNode == null || classNode == null) {
       return new ProgramGraph();
     }
+
     try {
       ProgramGraph ddg = new ProgramGraph();
       for (Node node : cfg.getNodes()) {
@@ -74,6 +75,7 @@ public class DataDependenceGraph extends Graph {
       boolean changed = true;
       while (changed) {
         changed = false;
+
         for (Node node : cfg.getNodes()) {
           Set<Variable> newIn = new HashSet<>();
           for (Node pred : cfg.getPredecessors(node)) {
@@ -124,6 +126,10 @@ public class DataDependenceGraph extends Graph {
     }
   }
 
+  /**
+   * Transfer function for reaching definitions: (inFacts \ kill) ∪ gen
+   * Following the pattern from the lecture code.
+   */
   private Set<Variable> reachingDefinitionsTransfer(Node node, Set<Variable> inFacts, String className) {
     try {
       Set<Variable> result = new HashSet<>(inFacts);
@@ -141,12 +147,14 @@ public class DataDependenceGraph extends Graph {
           return false;
         });
 
+        // Add new definitions of variables (GEN)
         result.addAll(definedVars);
       }
 
       return result;
 
     } catch (AnalyzerException e) {
+      // If analysis fails, just return the input facts
       return new HashSet<>(inFacts);
     }
   }
