@@ -40,7 +40,6 @@ public class DataDependenceGraph extends Graph {
     if (cfg == null || methodNode == null || classNode == null) {
       return new ProgramGraph();
     }
-
     try {
       ProgramGraph ddg = new ProgramGraph();
       for (Node node : cfg.getNodes()) {
@@ -49,79 +48,44 @@ public class DataDependenceGraph extends Graph {
 
       String className = classNode.name;
 
-      Map<Node, Set<Variable>> genSets = new HashMap<>();
-      Map<Node, Set<Variable>> killSets = new HashMap<>();
-
-      Set<Variable> allDefinedVariables = new HashSet<>();
-      Map<Variable, Set<Node>> variableToDefiningNodes = new HashMap<>();
+      Map<Variable, Node> variableToDefNode = new HashMap<>();
 
       for (Node node : cfg.getNodes()) {
         AbstractInsnNode instruction = node.getInstruction();
-        Set<Variable> gen = new HashSet<>();
-
         if (instruction != null) {
           try {
             Collection<Variable> definedVars = DataFlowAnalysis.definedBy(className, methodNode, instruction);
-            gen.addAll(definedVars);
-            allDefinedVariables.addAll(definedVars);
-
             for (Variable var : definedVars) {
-              variableToDefiningNodes.computeIfAbsent(var, k -> new HashSet<>()).add(node);
+              variableToDefNode.put(var, node);
             }
           } catch (AnalyzerException ignored) {
           }
         }
-        genSets.put(node, gen);
       }
 
-      for (Node node : cfg.getNodes()) {
-        Set<Variable> kill = new HashSet<>();
-        Set<Variable> gen = genSets.get(node);
-
-        for (Variable genVar : gen) {
-          Set<Node> definingNodes = variableToDefiningNodes.get(genVar);
-          if (definingNodes != null) {
-            for (Node defNode : definingNodes) {
-              if (!defNode.equals(node)) {
-                for (Variable otherVar : allDefinedVariables) {
-                  if (otherVar.equals(genVar) && variableToDefiningNodes.get(otherVar).contains(defNode)) {
-                    kill.add(otherVar);
-                  }
-                }
-              }
-            }
-          }
-        }
-        killSets.put(node, kill);
-      }
-
-      Map<Node, Set<Variable>> inSets = new HashMap<>();
-      Map<Node, Set<Variable>> outSets = new HashMap<>();
+      Map<Node, Set<Variable>> inFacts = new HashMap<>();
+      Map<Node, Set<Variable>> outFacts = new HashMap<>();
 
       for (Node node : cfg.getNodes()) {
-        inSets.put(node, new HashSet<>());
-        outSets.put(node, new HashSet<>());
+        inFacts.put(node, new HashSet<>());
+        outFacts.put(node, new HashSet<>());
       }
 
       boolean changed = true;
       while (changed) {
         changed = false;
-
         for (Node node : cfg.getNodes()) {
           Set<Variable> newIn = new HashSet<>();
           for (Node pred : cfg.getPredecessors(node)) {
-            newIn.addAll(outSets.get(pred));
+            newIn.addAll(outFacts.get(pred));
           }
 
-          Set<Variable> newOut = new HashSet<>(genSets.get(node));
-          Set<Variable> inMinusKill = new HashSet<>(newIn);
-          inMinusKill.removeAll(killSets.get(node));
-          newOut.addAll(inMinusKill);
+          Set<Variable> newOut = reachingDefinitionsTransfer(node, newIn, className);
 
-          if (!newIn.equals(inSets.get(node)) || !newOut.equals(outSets.get(node))) {
+          if (!newIn.equals(inFacts.get(node)) || !newOut.equals(outFacts.get(node))) {
             changed = true;
-            inSets.put(node, newIn);
-            outSets.put(node, newOut);
+            inFacts.put(node, newIn);
+            outFacts.put(node, newOut);
           }
         }
       }
@@ -134,15 +98,13 @@ public class DataDependenceGraph extends Graph {
           Collection<Variable> usedVars = DataFlowAnalysis.usedBy(className, methodNode, useInstruction);
 
           for (Variable usedVar : usedVars) {
-            Set<Variable> reachingDefs = inSets.get(useNode);
+            Set<Variable> reachingDefs = inFacts.get(useNode);
 
             for (Variable reachingDef : reachingDefs) {
               if (usedVar.equals(reachingDef)) {
-                for (Node defNode : cfg.getNodes()) {
-                  Set<Variable> genSet = genSets.get(defNode);
-                  if (genSet.contains(reachingDef)) {
-                    ddg.addEdge(defNode, useNode);
-                  }
+                Node defNode = variableToDefNode.get(reachingDef);
+                if (defNode != null) {
+                  ddg.addEdge(defNode, useNode);
                 }
               }
             }
@@ -159,6 +121,33 @@ public class DataDependenceGraph extends Graph {
         ddg.addNode(node);
       }
       return ddg;
+    }
+  }
+
+  private Set<Variable> reachingDefinitionsTransfer(Node node, Set<Variable> inFacts, String className) {
+    try {
+      Set<Variable> result = new HashSet<>(inFacts);
+
+      AbstractInsnNode instruction = node.getInstruction();
+      if (instruction != null) {
+        Collection<Variable> definedVars = DataFlowAnalysis.definedBy(className, methodNode, instruction);
+
+        result.removeIf(definition -> {
+          for (Variable definedVar : definedVars) {
+            if (definition.equals(definedVar)) {
+              return true;
+            }
+          }
+          return false;
+        });
+
+        result.addAll(definedVars);
+      }
+
+      return result;
+
+    } catch (AnalyzerException e) {
+      return new HashSet<>(inFacts);
     }
   }
   }
