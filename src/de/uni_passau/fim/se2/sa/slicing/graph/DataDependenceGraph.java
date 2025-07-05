@@ -65,30 +65,36 @@ public class DataDependenceGraph extends Graph {
         }
       }
 
-      Map<Node, Set<Variable>> inFacts = new HashMap<>();
-      Map<Node, Set<Variable>> outFacts = new HashMap<>();
+      Map<Node, Set<Variable>> reachIn = new HashMap<>();
+      Map<Node, Set<Variable>> reachOut = new HashMap<>();
 
       for (Node node : cfg.getNodes()) {
-        inFacts.put(node, new HashSet<>());
-        outFacts.put(node, new HashSet<>());
+        reachIn.put(node, new HashSet<>());
+        reachOut.put(node, new HashSet<>());
       }
 
-      boolean changed = true;
-      while (changed) {
-        changed = false;
+      Queue<Node> worklist = new LinkedList<>(cfg.getNodes());
 
-        for (Node node : cfg.getNodes()) {
-          Set<Variable> newIn = new HashSet<>();
-          for (Node pred : cfg.getPredecessors(node)) {
-            newIn.addAll(outFacts.get(pred));
-          }
+      while (!worklist.isEmpty()) {
+        Node n = worklist.poll();
 
-          Set<Variable> newOut = reachingDefinitionsTransfer(node, newIn, className);
+        Set<Variable> oldVal = new HashSet<>(reachOut.get(n));
 
-          if (!newIn.equals(inFacts.get(node)) || !newOut.equals(outFacts.get(node))) {
-            changed = true;
-            inFacts.put(node, newIn);
-            outFacts.put(node, newOut);
+        Set<Variable> newReachIn = new HashSet<>();
+        for (Node pred : cfg.getPredecessors(n)) {
+          newReachIn.addAll(reachOut.get(pred));
+        }
+        reachIn.put(n, newReachIn);
+
+
+        Set<Variable> newReachOut = reachingDefinitionsTransfer(n, newReachIn, className);
+        reachOut.put(n, newReachOut);
+
+        if (!newReachOut.equals(oldVal)) {
+          for (Node succ : cfg.getSuccessors(n)) {
+            if (!worklist.contains(succ)) {
+              worklist.add(succ);
+            }
           }
         }
       }
@@ -101,7 +107,7 @@ public class DataDependenceGraph extends Graph {
           Collection<Variable> usedVars = DataFlowAnalysis.usedBy(className, methodNode, useInstruction);
 
           for (Variable usedVar : usedVars) {
-            Set<Variable> reachingDefs = inFacts.get(useNode);
+            Set<Variable> reachingDefs = reachIn.get(useNode);
 
             for (Variable reachingDef : reachingDefs) {
               if (sameVariable(usedVar, reachingDef)) {
@@ -127,9 +133,9 @@ public class DataDependenceGraph extends Graph {
     }
   }
 
-  private Set<Variable> reachingDefinitionsTransfer(Node node, Set<Variable> inFacts, String className) {
+  private Set<Variable> reachingDefinitionsTransfer(Node node, Set<Variable> reachIn, String className) {
     try {
-      Set<Variable> result = new HashSet<>(inFacts);
+      Set<Variable> result = new HashSet<>(reachIn);
 
       AbstractInsnNode instruction = node.getInstruction();
       if (instruction != null) {
@@ -150,7 +156,7 @@ public class DataDependenceGraph extends Graph {
       return result;
 
     } catch (AnalyzerException e) {
-      return new HashSet<>(inFacts);
+      return new HashSet<>(reachIn);
     }
   }
 
@@ -158,11 +164,8 @@ public class DataDependenceGraph extends Graph {
     if (v1 == v2) {
       return true;
     }
-
-
     return Objects.equals(v1.type, v2.type);
   }
-
 
   private Node findDefiningNode(Variable targetVar, Map<Node, Set<Variable>> nodeToDefinitions) {
     for (Map.Entry<Node, Set<Variable>> entry : nodeToDefinitions.entrySet()) {
