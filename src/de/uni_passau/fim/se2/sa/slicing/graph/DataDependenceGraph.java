@@ -49,18 +49,19 @@ public class DataDependenceGraph extends Graph {
 
       String className = classNode.name;
 
-      Map<Variable, Node> variableToDefNode = new HashMap<>();
+      Map<Node, Set<Variable>> nodeToDefinitions = new HashMap<>();
 
       for (Node node : cfg.getNodes()) {
         AbstractInsnNode instruction = node.getInstruction();
         if (instruction != null) {
           try {
             Collection<Variable> definedVars = DataFlowAnalysis.definedBy(className, methodNode, instruction);
-            for (Variable var : definedVars) {
-              variableToDefNode.put(var, node);
-            }
-          } catch (AnalyzerException ignored) {
+            nodeToDefinitions.put(node, new HashSet<>(definedVars));
+          } catch (AnalyzerException e) {
+            nodeToDefinitions.put(node, new HashSet<>());
           }
+        } else {
+          nodeToDefinitions.put(node, new HashSet<>());
         }
       }
 
@@ -103,8 +104,8 @@ public class DataDependenceGraph extends Graph {
             Set<Variable> reachingDefs = inFacts.get(useNode);
 
             for (Variable reachingDef : reachingDefs) {
-              if (Objects.equals(usedVar.type, reachingDef.type)) {
-                Node defNode = variableToDefNode.get(reachingDef);
+              if (sameVariable(usedVar, reachingDef)) {
+                Node defNode = findDefiningNode(reachingDef, nodeToDefinitions);
                 if (defNode != null) {
                   ddg.addEdge(defNode, useNode);
                 }
@@ -136,7 +137,7 @@ public class DataDependenceGraph extends Graph {
 
         result.removeIf(definition -> {
           for (Variable definedVar : definedVars) {
-            if (Objects.equals(definition.type, definedVar.type)) {
+            if (sameVariable(definition, definedVar)) {
               return true;
             }
           }
@@ -152,6 +153,26 @@ public class DataDependenceGraph extends Graph {
       return new HashSet<>(inFacts);
     }
   }
+
+
+  private boolean sameVariable(Variable v1, Variable v2) {
+    return Objects.equals(v1, v2) &&
+            Objects.equals(v1.type, v2.type);
   }
+
+  private Node findDefiningNode(Variable targetVar, Map<Node, Set<Variable>> nodeToDefinitions) {
+    for (Map.Entry<Node, Set<Variable>> entry : nodeToDefinitions.entrySet()) {
+      Node node = entry.getKey();
+      Set<Variable> definedVars = entry.getValue();
+
+      for (Variable definedVar : definedVars) {
+        if (sameVariable(targetVar, definedVar)) {
+          return node;
+        }
+      }
+    }
+    return null;
+  }
+}
 
 
