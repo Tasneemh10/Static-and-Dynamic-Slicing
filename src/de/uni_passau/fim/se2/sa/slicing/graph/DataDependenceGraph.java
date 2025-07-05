@@ -103,7 +103,7 @@ public class DataDependenceGraph extends Graph {
             Set<Variable> reachingDefs = inFacts.get(useNode);
 
             for (Variable reachingDef : reachingDefs) {
-              if (usedVar.equals(reachingDef)) {
+              if (usedVar.equals(reachingDef) || Objects.equals(usedVar.type, reachingDef.type)) {
                 Node defNode = variableToDefNode.get(reachingDef);
                 if (defNode != null) {
                   ddg.addEdge(defNode, useNode);
@@ -126,10 +126,6 @@ public class DataDependenceGraph extends Graph {
     }
   }
 
-  /**
-   * Transfer function for reaching definitions: (inFacts \ kill) ∪ gen
-   * Following the pattern from the lecture code.
-   */
   private Set<Variable> reachingDefinitionsTransfer(Node node, Set<Variable> inFacts, String className) {
     try {
       Set<Variable> result = new HashSet<>(inFacts);
@@ -140,21 +136,19 @@ public class DataDependenceGraph extends Graph {
 
         result.removeIf(definition -> {
           for (Variable definedVar : definedVars) {
-            if (definition.equals(definedVar)) {
+            if (definition.equals(definedVar) || Objects.equals(definition.type, definedVar.type)) {
               return true;
             }
           }
           return false;
         });
 
-        // Add new definitions of variables (GEN)
         result.addAll(definedVars);
       }
 
       return result;
 
     } catch (AnalyzerException e) {
-      // If analysis fails, just return the input facts
       return new HashSet<>(inFacts);
     }
   }
