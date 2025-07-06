@@ -2,6 +2,8 @@ package de.uni_passau.fim.se2.sa.slicing.graph;
 
 import de.uni_passau.fim.se2.sa.slicing.cfg.Node;
 import de.uni_passau.fim.se2.sa.slicing.cfg.ProgramGraph;
+
+import java.util.HashSet;
 import java.util.Set;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodNode;
@@ -43,14 +45,67 @@ public class ProgramDependenceGraph extends Graph implements Sliceable<Node> {
    */
   @Override
   public ProgramGraph computeResult() {
-    // TODO Implement me
-    throw new UnsupportedOperationException("Implement me");
+    if (pdg != null) {
+      return pdg;
+    }
+
+    // Initialize new PDG
+    pdg = new ProgramGraph();
+
+    // Collect nodes from both graphs, avoiding duplicates
+    Set<Node> allNodes = new HashSet<>();
+    if (cdg != null) {
+      allNodes.addAll(cdg.getNodes());
+    }
+    if (ddg != null) {
+      allNodes.addAll(ddg.getNodes());
+    }
+
+    // Add nodes to PDG
+    allNodes.forEach(pdg::addNode);
+
+    // Transfer edges from control dependence graph
+    if (cdg != null) {
+      transferEdges(cdg, pdg);
+    }
+
+    // Transfer edges from data dependence graph
+    if (ddg != null) {
+      transferEdges(ddg, pdg);
+    }
+
+    return pdg;
+  }
+
+  private void transferEdges(ProgramGraph source, ProgramGraph target) {
+    for (Node sourceNode : source.getNodes()) {
+      source.getSuccessors(sourceNode).forEach(successor -> {
+        target.addEdge(sourceNode, successor);
+      });
+    }
   }
 
   /** {@inheritDoc} */
   @Override
   public Set<Node> backwardSlice(Node pCriterion) {
-    // TODO Implement me
-    throw new UnsupportedOperationException("Implement me");
+    ProgramGraph pdgGraph = computeResult();
+
+    if (pdgGraph == null || pCriterion == null) {
+      return new HashSet<>();
+    }
+
+    Set<Node> visited = new HashSet<>();
+    collectDependencies(pCriterion, pdgGraph, visited);
+    return visited;
+  }
+
+  private void collectDependencies(Node node, ProgramGraph graph, Set<Node> visited) {
+    if (visited.contains(node)) {
+      return;
+    }
+    visited.add(node);
+    for (Node dependency : graph.getPredecessors(node)) {
+      collectDependencies(dependency, graph, visited);
+    }
   }
 }
