@@ -47,22 +47,37 @@ public class SlicerUtil {
      * @return The simplified program dependence graph.
      */
     public static ProgramDependenceGraph simplify(final ProgramDependenceGraph pPDG) {
+        // Retrieve the set of lines that were actually executed
         Set<Integer> coveredLines = CoverageTracker.getVisitedLines();
 
+        // If no lines were covered, return the original PDG
         if (coveredLines.isEmpty()) {
             return pPDG;
         }
 
+        // Get the full PDG
         ProgramGraph fullGraph = pPDG.computeResult();
         ProgramGraph reducedGraph = new ProgramGraph();
 
+        // Find the method signature line (minimum line number)
+        int methodSignatureLine = Integer.MAX_VALUE;
         for (Node n : fullGraph.getNodes()) {
             int ln = n.getLineNumber();
-            if (ln > 0 && coveredLines.contains(ln)) {
+            if (ln > 0 && ln < methodSignatureLine) {
+                methodSignatureLine = ln;
+            }
+        }
+
+        // Only keep nodes for lines that were executed (and have a valid line number)
+        // AND are not the method signature line
+        for (Node n : fullGraph.getNodes()) {
+            int ln = n.getLineNumber();
+            if (ln > 0 && coveredLines.contains(ln) && ln != methodSignatureLine) {
                 reducedGraph.addNode(n);
             }
         }
 
+        // Add edges only between nodes that are both present in the reduced graph
         for (Node src : reducedGraph.getNodes()) {
             for (Node dst : fullGraph.getSuccessors(src)) {
                 if (reducedGraph.getNodes().contains(dst)) {
@@ -71,6 +86,7 @@ public class SlicerUtil {
             }
         }
 
+        // Return a new PDG based on the reduced graph
         return new ProgramDependenceGraph(reducedGraph);
     }
 }
