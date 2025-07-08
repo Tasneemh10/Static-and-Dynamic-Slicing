@@ -56,18 +56,9 @@ public class SlicerUtil {
         ProgramGraph fullGraph = pPDG.computeResult();
         ProgramGraph reducedGraph = new ProgramGraph();
 
-        int methodSignatureLine = Integer.MAX_VALUE;
         for (Node n : fullGraph.getNodes()) {
             int ln = n.getLineNumber();
-            if (ln > 0 && ln < methodSignatureLine) {
-                methodSignatureLine = ln;
-            }
-        }
-
-
-        for (Node n : fullGraph.getNodes()) {
-            int ln = n.getLineNumber();
-            if (ln > 0 && coveredLines.contains(ln) && ln != methodSignatureLine) {
+            if (ln > 0 && coveredLines.contains(ln)) {
                 reducedGraph.addNode(n);
             }
         }
