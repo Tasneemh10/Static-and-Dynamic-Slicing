@@ -28,53 +28,25 @@ public class ControlDependenceGraph extends Graph {
   @Override
   public ProgramGraph computeResult() {
     if (cfg == null) {
-      return new ProgramGraph();
+      return null;
     }
 
     PostDominatorTree pdtAnalysis = new PostDominatorTree(cfg);
     ProgramGraph pdt = pdtAnalysis.computeResult();
+
+    Map<Node, Node> ipdomMap = buildIpdomMap(pdt);
 
     ProgramGraph cdg = new ProgramGraph();
     for (Node node : cfg.getNodes()) {
       cdg.addNode(node);
     }
 
-    for (Node a : cfg.getNodes()) {
-      for (Node b : cfg.getSuccessors(a)) {
-        if (!isReachable(pdt, b, a)) {
-
-          Node lca = findLeastCommonAncestor(pdt, a, b);
-
-          if (lca == null) {
-            continue;
-          }
-
-          Node current = b;
-          while (current != null && !current.equals(lca)) {
-            cdg.addEdge(a, current);
-
-            Collection<Node> predecessors = pdt.getPredecessors(current);
-            if (!predecessors.isEmpty()) {
-              current = predecessors.iterator().next();
-            } else {
-              break;
-            }
-          }
-
-          if (lca.equals(a)) {
-            cdg.addEdge(a, lca);
-          }
-        }
-      }
-    }
-
-    Optional<Node> entryOpt = cfg.getEntry();
-    if (entryOpt.isPresent()) {
-      Node entry = entryOpt.get();
-
-      for (Node node : cdg.getNodes()) {
-        if (!node.equals(entry) && cdg.getPredecessors(node).isEmpty()) {
-          //cdg.addEdge(node, entry);
+    for (Node n : cfg.getNodes()) {
+      Collection<Node> succs = cfg.getSuccessors(n);
+      if (!succs.isEmpty()) {
+        Node nIpdom = ipdomMap.get(n);
+        for (Node s : succs) {
+          addControlDependencies(cdg, n, s, nIpdom, ipdomMap);
         }
       }
     }
@@ -82,33 +54,22 @@ public class ControlDependenceGraph extends Graph {
     return cdg;
   }
 
-  private boolean isReachable(ProgramGraph graph, Node source, Node target) {
-    if (source.equals(target)) {
-      return true;
+  private Map<Node, Node> buildIpdomMap(ProgramGraph pdt) {
+    Map<Node, Node> ipdomMap = new HashMap<>();
+    for (Node n : pdt.getNodes()) {
+      Collection<Node> preds = pdt.getPredecessors(n);
+      if (preds.size() == 1) {
+        ipdomMap.put(n, preds.iterator().next());
+      }
     }
-
-    Collection<Node> transitiveSuccessors = graph.getTransitiveSuccessors(source);
-    return transitiveSuccessors.contains(target);
+    return ipdomMap;
   }
 
-
-  private Node findLeastCommonAncestor(ProgramGraph pdt, Node node1, Node node2) {
-    Node current = node1;
-
-    while (current != null) {
-      Collection<Node> successors = pdt.getTransitiveSuccessors(current);
-
-      if (successors.contains(node1) && successors.contains(node2)) {
-        return current;
-      }
-
-      Collection<Node> predecessors = pdt.getPredecessors(current);
-      if (!predecessors.isEmpty()) {
-        current = predecessors.iterator().next();
-      } else {
-        break;
-      }
+  private void addControlDependencies(ProgramGraph cdg, Node controller, Node start, Node ipdom, Map<Node, Node> ipdomMap) {
+    Node walker = start;
+    while (walker != null && !walker.equals(ipdom)) {
+      cdg.addEdge(controller, walker);
+      walker = ipdomMap.get(walker);
     }
-    return null;
   }
 }
