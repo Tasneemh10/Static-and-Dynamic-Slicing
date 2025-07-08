@@ -49,11 +49,29 @@ public class ProgramDependenceGraph extends Graph implements Sliceable<Node> {
       return pdg;
     }
 
-    // Initialize new PDG
     pdg = new ProgramGraph();
 
-    // Collect nodes from both graphs, avoiding duplicates
+    System.err.println("=== DEBUG PDG Construction ===");
+    if (cdg != null) {
+      System.err.println("CDG nodes: " + cdg.getNodes().size());
+      for (Node n : cdg.getNodes()) {
+        System.err.println("CDG node: " + n);
+      }
+    }
+    if (ddg != null) {
+      System.err.println("DDG nodes: " + ddg.getNodes().size());
+      for (Node n : ddg.getNodes()) {
+        System.err.println("DDG node: " + n);
+      }
+    }
+
+    // Collect nodes from CFG first to ensure we have all nodes
     Set<Node> allNodes = new HashSet<>();
+    if (cfg != null) {
+      allNodes.addAll(cfg.getNodes());
+    }
+
+    // Then add nodes from CDG and DDG
     if (cdg != null) {
       allNodes.addAll(cdg.getNodes());
     }
@@ -73,6 +91,9 @@ public class ProgramDependenceGraph extends Graph implements Sliceable<Node> {
     if (ddg != null) {
       transferEdges(ddg, pdg);
     }
+
+    System.err.println("Final PDG nodes: " + pdg.getNodes().size());
+    System.err.println("=== END DEBUG ===");
 
     return pdg;
   }
