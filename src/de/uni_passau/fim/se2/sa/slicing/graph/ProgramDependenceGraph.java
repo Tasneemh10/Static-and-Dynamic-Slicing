@@ -3,8 +3,8 @@ package de.uni_passau.fim.se2.sa.slicing.graph;
 import de.uni_passau.fim.se2.sa.slicing.cfg.Node;
 import de.uni_passau.fim.se2.sa.slicing.cfg.ProgramGraph;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
+
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodNode;
 
@@ -91,12 +91,24 @@ public class ProgramDependenceGraph extends Graph implements Sliceable<Node> {
     ProgramGraph pdgGraph = computeResult();
 
     if (pdgGraph == null || pCriterion == null) {
-      return new HashSet<>();
+      return new LinkedHashSet<>();
     }
 
-    Set<Node> visited = new HashSet<>();
-    collectDependencies(pCriterion, pdgGraph, visited);
-    return visited;
+    Set<Node> slice = new HashSet<>();
+    collectDependencies(pCriterion, pdgGraph, slice);
+
+    List<Node> sortedNodes = new ArrayList<>(slice);
+    sortedNodes.sort((n1, n2) -> {
+      try {
+        int id1 = Integer.parseInt(n1.getID().replaceAll("\"", ""));
+        int id2 = Integer.parseInt(n2.getID().replaceAll("\"", ""));
+        return Integer.compare(id1, id2);
+      } catch (NumberFormatException e) {
+        return n1.getID().compareTo(n2.getID());
+      }
+    });
+
+    return new LinkedHashSet<>(sortedNodes);
   }
 
   private void collectDependencies(Node node, ProgramGraph graph, Set<Node> visited) {
