@@ -116,10 +116,9 @@ public class DataDependenceGraph extends Graph {
       Set<DefUse> currentNodeDefs = gen.get(node);
 
       // For each definition in this node, kill all other definitions of the same variable
-      for (DefUse myDef : currentNodeDefs) {
-        for (DefUse otherDef : allDefs) {
-          // Kill definitions of the same variable from different nodes
-          if (!otherDef.node.equals(node) && sameVariable(myDef.variable, otherDef.variable)) {
+      for (DefUse otherDef : allDefs) {
+        for (DefUse myDef : currentNodeDefs) {
+          if (otherDef.variable.equals(myDef.variable) && !otherDef.node.equals(node)) {
             kill.get(node).add(otherDef);
           }
         }
@@ -151,10 +150,10 @@ public class DataDependenceGraph extends Graph {
           newReachIn.addAll(reachOut.get(pred));
         }
 
-        // Calculate new OUT set: (IN - KILL) ∪ GEN
-        Set<DefUse> newReachOut = new HashSet<>(newReachIn);
-        newReachOut.removeAll(kill.get(node));
-        newReachOut.addAll(gen.get(node));
+        Set<DefUse> newReachOut = new HashSet<>(gen.get(node));
+        Set<DefUse> inMinusKill = new HashSet<>(newReachIn);
+        inMinusKill.removeAll(kill.get(node));
+        newReachOut.addAll(inMinusKill);
 
         // Check if anything changed
         if (!newReachIn.equals(reachIn.get(node)) || !newReachOut.equals(reachOut.get(node))) {
@@ -176,7 +175,7 @@ public class DataDependenceGraph extends Graph {
       for (Variable usedVar : uses.get(useNode)) {
         // Find all reaching definitions for this use
         for (DefUse reachingDef : reachIn.get(useNode)) {
-          if (sameVariable(reachingDef.variable, usedVar)) {
+          if (reachingDef.variable.equals(usedVar)) {
             ddg.addEdge(reachingDef.node, useNode);
           }
         }
