@@ -85,7 +85,7 @@ class DataFlowAnalysis {
 
       int instructionIndex = findInstructionIndex(pMethodNode, pInstruction);
       if (instructionIndex == -1 || instructionIndex >= frames.length) {
-        return definedVariables; // Instruction not found or out of bounds
+        return definedVariables;
       }
 
       DefUseFrame frame = frames[instructionIndex];
