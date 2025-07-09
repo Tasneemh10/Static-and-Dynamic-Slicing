@@ -33,9 +33,7 @@ public final class CoverageTracker {
    */
   // Needs to be public to be callable during test execution
   public static void trackLineVisit(int pLineNumber) {
-    synchronized (visitedLines) {
       visitedLines.add(pLineNumber);
-    }
   }
 
   /**
