@@ -183,26 +183,7 @@ public class DataDependenceGraph extends Graph {
     }
   }
 
-  private boolean sameVariable(Variable v1, Variable v2) {
-    if (v1 == v2) {
-      return true;
-    }
-    if (v1 == null || v2 == null) {
-      return false;
-    }
 
-    // For local variables, compare type and index
-    if (v1 instanceof br.usp.each.saeg.asm.defuse.Local && v2 instanceof br.usp.each.saeg.asm.defuse.Local) {
-      br.usp.each.saeg.asm.defuse.Local l1 = (br.usp.each.saeg.asm.defuse.Local) v1;
-      br.usp.each.saeg.asm.defuse.Local l2 = (br.usp.each.saeg.asm.defuse.Local) v2;
-      return l1.var == l2.var && Objects.equals(l1.type, l2.type);
-    }
-
-    // For other variable types, use equals method
-    return v1.equals(v2);
-  }
-
-  // Helper class to track definition with its node
   private static class DefUse {
     final Node node;
     final Variable variable;

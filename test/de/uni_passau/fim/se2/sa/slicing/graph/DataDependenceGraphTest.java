@@ -519,6 +519,7 @@ class DataDependenceGraphTest {
         // Test with both null class and method - this is the only null case that works
         DataDependenceGraph ddg = new DataDependenceGraph(null, null);
 
+        // Should handle null method gracefully
         assertDoesNotThrow(() -> {
             ProgramGraph result = ddg.computeResult();
             assertNotNull(result);
