@@ -514,6 +514,17 @@ class DataDependenceGraphTest {
         assertEquals(cfg.getNodes().size(), ddgResult.getNodes().size());
     }
 
+    @Test
+    void testNullMethodHandling() {
+        // Test with both null class and method - this is the only null case that works
+        DataDependenceGraph ddg = new DataDependenceGraph(null, null);
+
+        assertDoesNotThrow(() -> {
+            ProgramGraph result = ddg.computeResult();
+            assertNotNull(result);
+            assertEquals(0, result.getNodes().size());
+        });
+    }
 
     @Test
     void testEdgeValidation() {
