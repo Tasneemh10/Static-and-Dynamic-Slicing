@@ -38,9 +38,6 @@ class DataFlowAnalysis {
       Set<Variable> usedVariables = new HashSet<>();
 
       int instructionIndex = findInstructionIndex(pMethodNode, pInstruction);
-      if (instructionIndex == -1 || instructionIndex >= frames.length) {
-        return usedVariables;
-      }
 
       DefUseFrame frame = frames[instructionIndex];
       Set<Variable> uses = frame.getUses();
@@ -84,9 +81,6 @@ class DataFlowAnalysis {
       Set<Variable> definedVariables = new HashSet<>();
 
       int instructionIndex = findInstructionIndex(pMethodNode, pInstruction);
-      if (instructionIndex == -1 || instructionIndex >= frames.length) {
-        return definedVariables;
-      }
 
       DefUseFrame frame = frames[instructionIndex];
       Set<Variable> definitions = frame.getDefinitions();
