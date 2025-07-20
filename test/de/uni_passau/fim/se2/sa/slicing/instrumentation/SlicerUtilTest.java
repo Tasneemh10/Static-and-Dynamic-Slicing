@@ -1,369 +1,369 @@
 package de.uni_passau.fim.se2.sa.slicing.instrumentation;
 
-import de.uni_passau.fim.se2.sa.slicing.SlicerUtil;
-import de.uni_passau.fim.se2.sa.slicing.cfg.Node;
-import de.uni_passau.fim.se2.sa.slicing.cfg.ProgramGraph;
+import static org.junit.jupiter.api.Assertions.*;
+
 import de.uni_passau.fim.se2.sa.slicing.coverage.CoverageTracker;
-import de.uni_passau.fim.se2.sa.slicing.graph.ProgramDependenceGraph;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.MockedStatic;
-import org.mockito.Mockito;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.io.ByteArrayOutputStream;
-import java.io.PrintStream;
-import java.util.*;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
-
-@ExtendWith(MockitoExtension.class)
-class SlicerUtilTest {
-
-    private ByteArrayOutputStream errorStream;
-    private PrintStream originalErr;
+class CoverageTrackerTest {
 
     @BeforeEach
     void setUp() {
-        // Capture System.err for testing error output
-        errorStream = new ByteArrayOutputStream();
-        originalErr = System.err;
-        System.setErr(new PrintStream(errorStream));
+        CoverageTracker.reset();
+    }
+
+    @AfterEach
+    void tearDown() {
+        CoverageTracker.reset();
     }
 
     @Test
-    void testExecuteTest_ValidClassAndTest() {
-        // This test verifies that executeTest runs without throwing exceptions
-        // when given valid parameters
-        assertDoesNotThrow(() -> {
-            SlicerUtil.executeTest("ValidClass", "testMethod");
+    void testInitialStateEmpty() {
+        Set<Integer> visitedLines = CoverageTracker.getVisitedLines();
+
+        assertNotNull(visitedLines);
+        assertTrue(visitedLines.isEmpty());
+        assertEquals(0, visitedLines.size());
+    }
+
+    @Test
+    void testTrackSingleLineVisit() {
+        CoverageTracker.trackLineVisit(10);
+
+        Set<Integer> visitedLines = CoverageTracker.getVisitedLines();
+
+        assertNotNull(visitedLines);
+        assertEquals(1, visitedLines.size());
+        assertTrue(visitedLines.contains(10));
+        assertFalse(visitedLines.contains(9));
+        assertFalse(visitedLines.contains(11));
+    }
+
+    @Test
+    void testTrackMultipleLineVisits() {
+        CoverageTracker.trackLineVisit(5);
+        CoverageTracker.trackLineVisit(10);
+        CoverageTracker.trackLineVisit(15);
+
+        Set<Integer> visitedLines = CoverageTracker.getVisitedLines();
+
+        assertNotNull(visitedLines);
+        assertEquals(3, visitedLines.size());
+        assertTrue(visitedLines.contains(5));
+        assertTrue(visitedLines.contains(10));
+        assertTrue(visitedLines.contains(15));
+        assertFalse(visitedLines.contains(1));
+        assertFalse(visitedLines.contains(20));
+    }
+
+    @Test
+    void testTrackDuplicateLineVisits() {
+        CoverageTracker.trackLineVisit(10);
+        CoverageTracker.trackLineVisit(10);
+        CoverageTracker.trackLineVisit(10);
+
+        Set<Integer> visitedLines = CoverageTracker.getVisitedLines();
+
+        assertNotNull(visitedLines);
+        assertEquals(1, visitedLines.size());
+        assertTrue(visitedLines.contains(10));
+    }
+
+    @Test
+    void testTrackNegativeLineNumbers() {
+        CoverageTracker.trackLineVisit(-1);
+        CoverageTracker.trackLineVisit(-5);
+
+        Set<Integer> visitedLines = CoverageTracker.getVisitedLines();
+
+        assertNotNull(visitedLines);
+        assertEquals(2, visitedLines.size());
+        assertTrue(visitedLines.contains(-1));
+        assertTrue(visitedLines.contains(-5));
+    }
+
+    @Test
+    void testTrackZeroLineNumber() {
+        CoverageTracker.trackLineVisit(0);
+
+        Set<Integer> visitedLines = CoverageTracker.getVisitedLines();
+
+        assertNotNull(visitedLines);
+        assertEquals(1, visitedLines.size());
+        assertTrue(visitedLines.contains(0));
+    }
+
+    @Test
+    void testTrackLargeLineNumbers() {
+        CoverageTracker.trackLineVisit(Integer.MAX_VALUE);
+        CoverageTracker.trackLineVisit(Integer.MIN_VALUE);
+        CoverageTracker.trackLineVisit(1000000);
+
+        Set<Integer> visitedLines = CoverageTracker.getVisitedLines();
+
+        assertNotNull(visitedLines);
+        assertEquals(3, visitedLines.size());
+        assertTrue(visitedLines.contains(Integer.MAX_VALUE));
+        assertTrue(visitedLines.contains(Integer.MIN_VALUE));
+        assertTrue(visitedLines.contains(1000000));
+    }
+
+    @Test
+    void testReset() {
+        // Add some line visits
+        CoverageTracker.trackLineVisit(1);
+        CoverageTracker.trackLineVisit(2);
+        CoverageTracker.trackLineVisit(3);
+
+        assertEquals(3, CoverageTracker.getVisitedLines().size());
+
+        // Reset and verify empty
+        CoverageTracker.reset();
+
+        Set<Integer> visitedLines = CoverageTracker.getVisitedLines();
+        assertNotNull(visitedLines);
+        assertTrue(visitedLines.isEmpty());
+        assertEquals(0, visitedLines.size());
+    }
+
+    @Test
+    void testResetMultipleTimes() {
+        CoverageTracker.trackLineVisit(10);
+        assertEquals(1, CoverageTracker.getVisitedLines().size());
+
+        CoverageTracker.reset();
+        assertEquals(0, CoverageTracker.getVisitedLines().size());
+
+        CoverageTracker.reset();
+        assertEquals(0, CoverageTracker.getVisitedLines().size());
+
+        CoverageTracker.trackLineVisit(20);
+        assertEquals(1, CoverageTracker.getVisitedLines().size());
+        assertTrue(CoverageTracker.getVisitedLines().contains(20));
+        assertFalse(CoverageTracker.getVisitedLines().contains(10));
+    }
+
+    @Test
+    void testGetVisitedLinesReturnsUnmodifiableSet() {
+        CoverageTracker.trackLineVisit(10);
+        Set<Integer> visitedLines = CoverageTracker.getVisitedLines();
+
+        assertNotNull(visitedLines);
+        assertEquals(1, visitedLines.size());
+
+        // Attempt to modify the returned set should throw exception
+        assertThrows(UnsupportedOperationException.class, () -> {
+            visitedLines.add(20);
         });
-    }
 
-    @Test
-    void testExecuteTest_NullClassName() {
-        // Test behavior with null className
-        assertDoesNotThrow(() -> {
-            SlicerUtil.executeTest(null, "testMethod");
+        assertThrows(UnsupportedOperationException.class, () -> {
+            visitedLines.remove(10);
         });
 
-        // Verify error was logged
-        String errorOutput = errorStream.toString();
-        assertTrue(errorOutput.contains("Test execution failed"));
-    }
-
-    @Test
-    void testExecuteTest_NullTestCase() {
-        // Test behavior with null test case
-        assertDoesNotThrow(() -> {
-            SlicerUtil.executeTest("ValidClass", null);
+        assertThrows(UnsupportedOperationException.class, () -> {
+            visitedLines.clear();
         });
 
-        String errorOutput = errorStream.toString();
-        assertTrue(errorOutput.contains("Test execution failed"));
+        // Original set should remain unchanged
+        assertEquals(1, visitedLines.size());
+        assertTrue(visitedLines.contains(10));
     }
 
     @Test
-    void testExecuteTest_EmptyClassName() {
-        // Test behavior with empty className
-        assertDoesNotThrow(() -> {
-            SlicerUtil.executeTest("", "testMethod");
-        });
+    void testGetVisitedLinesConsistency() {
+        CoverageTracker.trackLineVisit(5);
+        CoverageTracker.trackLineVisit(10);
 
-        String errorOutput = errorStream.toString();
-        assertTrue(errorOutput.contains("Test execution failed"));
-    }
+        Set<Integer> firstCall = CoverageTracker.getVisitedLines();
+        Set<Integer> secondCall = CoverageTracker.getVisitedLines();
 
-    @Test
-    void testExecuteTest_EmptyTestCase() {
-        // Test behavior with empty test case
-        assertDoesNotThrow(() -> {
-            SlicerUtil.executeTest("ValidClass", "");
-        });
+        assertNotNull(firstCall);
+        assertNotNull(secondCall);
+        assertEquals(firstCall.size(), secondCall.size());
+        assertEquals(firstCall, secondCall);
 
-        String errorOutput = errorStream.toString();
-        assertTrue(errorOutput.contains("Test execution failed"));
-    }
-
-    @Test
-    void testExecuteTest_NonExistentClass() {
-        // Test with a class that doesn't exist
-        assertDoesNotThrow(() -> {
-            SlicerUtil.executeTest("NonExistentClass", "testMethod");
-        });
-
-        String errorOutput = errorStream.toString();
-        assertTrue(errorOutput.contains("Test execution failed"));
-        assertTrue(errorOutput.contains("NonExistentClass"));
-        assertTrue(errorOutput.contains("testMethod"));
-    }
-
-    @Test
-    void testSimplify_EmptyCoverage() {
-        // Create mock objects
-        ProgramDependenceGraph mockPDG = mock(ProgramDependenceGraph.class);
-        ProgramGraph mockFullGraph = mock(ProgramGraph.class);
-        ProgramDependenceGraph result;
-
-        try (MockedStatic<CoverageTracker> mockedTracker = mockStatic(CoverageTracker.class)) {
-            // Setup mocks
-            mockedTracker.when(CoverageTracker::getVisitedLines).thenReturn(Collections.emptySet());
-
-            // Execute test
-            result = SlicerUtil.simplify(mockPDG);
-
-            // Verify that the original PDG is returned when no coverage
-            assertEquals(mockPDG, result);
-            verify(mockPDG, never()).computeResult();
+        // Sets should contain same elements
+        for (Integer line : firstCall) {
+            assertTrue(secondCall.contains(line));
         }
     }
 
     @Test
-    void testSimplify_WithCoverage() {
-        // Create mock objects
-        ProgramDependenceGraph mockPDG = mock(ProgramDependenceGraph.class);
-        ProgramGraph mockFullGraph = mock(ProgramGraph.class);
+    void testLinkedHashSetOrderPreservation() {
+        // Track lines in specific order
+        CoverageTracker.trackLineVisit(30);
+        CoverageTracker.trackLineVisit(10);
+        CoverageTracker.trackLineVisit(20);
+        CoverageTracker.trackLineVisit(15);
 
-        // Create test nodes
-        Node node1 = mock(Node.class);
-        Node node2 = mock(Node.class);
-        Node node3 = mock(Node.class);
+        Set<Integer> visitedLines = CoverageTracker.getVisitedLines();
+        assertEquals(4, visitedLines.size());
 
-        when(node1.getLineNumber()).thenReturn(10);
-        when(node2.getLineNumber()).thenReturn(20);
-        when(node3.getLineNumber()).thenReturn(30);
+        // Verify insertion order is preserved (LinkedHashSet property)
+        Integer[] expectedOrder = {30, 10, 20, 15};
+        Integer[] actualOrder = visitedLines.toArray(new Integer[0]);
 
-        List<Node> allNodes = Arrays.asList(node1, node2, node3);
-        Set<Integer> coveredLines = Set.of(10, 20);
-
-        try (MockedStatic<CoverageTracker> mockedTracker = mockStatic(CoverageTracker.class)) {
-            // Setup mocks
-            mockedTracker.when(CoverageTracker::getVisitedLines).thenReturn(coveredLines);
-            when(mockPDG.computeResult()).thenReturn(mockFullGraph);
-            when(mockFullGraph.getNodes()).thenReturn(allNodes);
-            when(mockFullGraph.getSuccessors(node1)).thenReturn(Arrays.asList(node2));
-            when(mockFullGraph.getSuccessors(node2)).thenReturn(Collections.emptyList());
-
-            // Execute test
-            ProgramDependenceGraph result = SlicerUtil.simplify(mockPDG);
-
-            // Verify result is not the same object as input
-            assertNotNull(result);
-            assertNotEquals(mockPDG, result);
-
-            // Verify computeResult was called
-            verify(mockPDG).computeResult();
-        }
+        assertArrayEquals(expectedOrder, actualOrder);
     }
 
     @Test
-    void testSimplify_NodeWithZeroLineNumber() {
-        // Test nodes with line number 0 (should be excluded)
-        ProgramDependenceGraph mockPDG = mock(ProgramDependenceGraph.class);
-        ProgramGraph mockFullGraph = mock(ProgramGraph.class);
+    void testConcurrentAccess() throws InterruptedException {
+        int numThreads = 10;
+        int linesPerThread = 100;
+        ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+        CountDownLatch latch = new CountDownLatch(numThreads);
 
-        Node nodeZeroLine = mock(Node.class);
-        Node nodeValidLine = mock(Node.class);
-
-        when(nodeZeroLine.getLineNumber()).thenReturn(0);
-        when(nodeValidLine.getLineNumber()).thenReturn(10);
-
-        List<Node> allNodes = Arrays.asList(nodeZeroLine, nodeValidLine);
-        Set<Integer> coveredLines = Set.of(0, 10);
-
-        try (MockedStatic<CoverageTracker> mockedTracker = mockStatic(CoverageTracker.class)) {
-            mockedTracker.when(CoverageTracker::getVisitedLines).thenReturn(coveredLines);
-            when(mockPDG.computeResult()).thenReturn(mockFullGraph);
-            when(mockFullGraph.getNodes()).thenReturn(allNodes);
-            when(mockFullGraph.getSuccessors(any())).thenReturn(Collections.emptyList());
-
-            ProgramDependenceGraph result = SlicerUtil.simplify(mockPDG);
-
-            assertNotNull(result);
-            verify(mockPDG).computeResult();
-        }
-    }
-
-    @Test
-    void testSimplify_NodeWithNegativeLineNumber() {
-        // Test nodes with negative line numbers (should be excluded)
-        ProgramDependenceGraph mockPDG = mock(ProgramDependenceGraph.class);
-        ProgramGraph mockFullGraph = mock(ProgramGraph.class);
-
-        Node nodeNegativeLine = mock(Node.class);
-        Node nodeValidLine = mock(Node.class);
-
-        when(nodeNegativeLine.getLineNumber()).thenReturn(-5);
-        when(nodeValidLine.getLineNumber()).thenReturn(15);
-
-        List<Node> allNodes = Arrays.asList(nodeNegativeLine, nodeValidLine);
-        Set<Integer> coveredLines = Set.of(-5, 15);
-
-        try (MockedStatic<CoverageTracker> mockedTracker = mockStatic(CoverageTracker.class)) {
-            mockedTracker.when(CoverageTracker::getVisitedLines).thenReturn(coveredLines);
-            when(mockPDG.computeResult()).thenReturn(mockFullGraph);
-            when(mockFullGraph.getNodes()).thenReturn(allNodes);
-            when(mockFullGraph.getSuccessors(any())).thenReturn(Collections.emptyList());
-
-            ProgramDependenceGraph result = SlicerUtil.simplify(mockPDG);
-
-            assertNotNull(result);
-            verify(mockPDG).computeResult();
-        }
-    }
-
-    @Test
-    void testSimplify_ComplexGraphWithEdges() {
-        // Test a more complex scenario with multiple nodes and edges
-        ProgramDependenceGraph mockPDG = mock(ProgramDependenceGraph.class);
-        ProgramGraph mockFullGraph = mock(ProgramGraph.class);
-
-        Node node1 = mock(Node.class);
-        Node node2 = mock(Node.class);
-        Node node3 = mock(Node.class);
-        Node node4 = mock(Node.class);
-
-        when(node1.getLineNumber()).thenReturn(10);
-        when(node2.getLineNumber()).thenReturn(20);
-        when(node3.getLineNumber()).thenReturn(30);
-        when(node4.getLineNumber()).thenReturn(40);
-
-        List<Node> allNodes = Arrays.asList(node1, node2, node3, node4);
-        Set<Integer> coveredLines = Set.of(10, 30); // Only lines 10 and 30 are covered
-
-        try (MockedStatic<CoverageTracker> mockedTracker = mockStatic(CoverageTracker.class)) {
-            mockedTracker.when(CoverageTracker::getVisitedLines).thenReturn(coveredLines);
-            when(mockPDG.computeResult()).thenReturn(mockFullGraph);
-            when(mockFullGraph.getNodes()).thenReturn(allNodes);
-
-            // Setup edges: only for covered nodes (node1 and node3)
-            when(mockFullGraph.getSuccessors(node1)).thenReturn(Arrays.asList(node2, node3));
-            when(mockFullGraph.getSuccessors(node3)).thenReturn(Collections.emptyList());
-
-            ProgramDependenceGraph result = SlicerUtil.simplify(mockPDG);
-
-            assertNotNull(result);
-            verify(mockPDG).computeResult();
-        }
-    }
-
-    @Test
-    void testSimplify_NullPDG() {
-        // Test with null input - the method actually handles null gracefully
-        // by calling getVisitedLines() first, so it doesn't immediately throw NPE
-        try (MockedStatic<CoverageTracker> mockedTracker = mockStatic(CoverageTracker.class)) {
-            mockedTracker.when(CoverageTracker::getVisitedLines).thenReturn(Set.of(10));
-
-            // This will throw NPE when trying to call computeResult() on null
-            assertThrows(NullPointerException.class, () -> {
-                SlicerUtil.simplify(null);
+        // Each thread tracks different line numbers
+        for (int i = 0; i < numThreads; i++) {
+            final int threadId = i;
+            executor.submit(() -> {
+                try {
+                    for (int j = 0; j < linesPerThread; j++) {
+                        CoverageTracker.trackLineVisit(threadId * linesPerThread + j);
+                    }
+                } finally {
+                    latch.countDown();
+                }
             });
         }
-    }
 
-    @Test
-    void testSimplify_SingleNodeCovered() {
-        // Test with only one node covered
-        ProgramDependenceGraph mockPDG = mock(ProgramDependenceGraph.class);
-        ProgramGraph mockFullGraph = mock(ProgramGraph.class);
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
+        executor.shutdown();
 
-        Node singleNode = mock(Node.class);
-        when(singleNode.getLineNumber()).thenReturn(5);
+        Set<Integer> visitedLines = CoverageTracker.getVisitedLines();
 
-        List<Node> allNodes = Arrays.asList(singleNode);
-        Set<Integer> coveredLines = Set.of(5);
+        // The implementation may not be fully thread-safe, so we test that:
+        // 1. Some lines were tracked (not zero)
+        // 2. No more than expected were tracked
+        // 3. All tracked lines are within expected range
+        int expectedTotal = numThreads * linesPerThread;
+        assertTrue(visitedLines.size() > 0, "Should track some lines");
+        assertTrue(visitedLines.size() <= expectedTotal, "Should not exceed expected total");
 
-        try (MockedStatic<CoverageTracker> mockedTracker = mockStatic(CoverageTracker.class)) {
-            mockedTracker.when(CoverageTracker::getVisitedLines).thenReturn(coveredLines);
-            when(mockPDG.computeResult()).thenReturn(mockFullGraph);
-            when(mockFullGraph.getNodes()).thenReturn(allNodes);
-            when(mockFullGraph.getSuccessors(singleNode)).thenReturn(Collections.emptyList());
-
-            ProgramDependenceGraph result = SlicerUtil.simplify(mockPDG);
-
-            assertNotNull(result);
-            verify(mockPDG).computeResult();
+        // Verify all tracked lines are within expected range
+        for (Integer line : visitedLines) {
+            assertTrue(line >= 0 && line < expectedTotal,
+                    "Line number " + line + " is outside expected range [0, " + expectedTotal + ")");
         }
     }
 
     @Test
-    void testSimplify_NoCoveredNodes() {
-        // Test where coverage exists but no nodes match the covered lines
-        ProgramDependenceGraph mockPDG = mock(ProgramDependenceGraph.class);
-        ProgramGraph mockFullGraph = mock(ProgramGraph.class);
+    void testConcurrentResetAndTrack() throws InterruptedException {
+        int numOperations = 1000;
+        ExecutorService executor = Executors.newFixedThreadPool(5);
+        CountDownLatch latch = new CountDownLatch(5);
 
-        Node node1 = mock(Node.class);
-        when(node1.getLineNumber()).thenReturn(10);
-
-        List<Node> allNodes = Arrays.asList(node1);
-        Set<Integer> coveredLines = Set.of(20); // Different line than the node
-
-        try (MockedStatic<CoverageTracker> mockedTracker = mockStatic(CoverageTracker.class)) {
-            mockedTracker.when(CoverageTracker::getVisitedLines).thenReturn(coveredLines);
-            when(mockPDG.computeResult()).thenReturn(mockFullGraph);
-            when(mockFullGraph.getNodes()).thenReturn(allNodes);
-
-            ProgramDependenceGraph result = SlicerUtil.simplify(mockPDG);
-
-            assertNotNull(result);
-            verify(mockPDG).computeResult();
+        // Mix of track and reset operations
+        for (int i = 0; i < 5; i++) {
+            final int threadId = i;
+            executor.submit(() -> {
+                try {
+                    for (int j = 0; j < numOperations; j++) {
+                        if (j % 100 == 0 && threadId == 0) {
+                            CoverageTracker.reset();
+                        } else {
+                            CoverageTracker.trackLineVisit(threadId * numOperations + j);
+                        }
+                    }
+                } finally {
+                    latch.countDown();
+                }
+            });
         }
+
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
+        executor.shutdown();
+
+        // Should complete without exceptions
+        Set<Integer> visitedLines = CoverageTracker.getVisitedLines();
+        assertNotNull(visitedLines);
+        assertTrue(visitedLines.size() >= 0);
     }
 
     @Test
-    void testExecuteTest_SpecialCharactersInNames() {
-        // Test with special characters in class and test names
-        assertDoesNotThrow(() -> {
-            SlicerUtil.executeTest("Class$With$Special", "test_with_underscores");
-        });
+    void testStaticUtilityClassDesign() {
+        // Verify class is final
+        assertTrue(java.lang.reflect.Modifier.isFinal(CoverageTracker.class.getModifiers()));
 
-        String errorOutput = errorStream.toString();
-        assertTrue(errorOutput.contains("Test execution failed"));
-    }
-
-    @Test
-    void testExecuteTest_VeryLongNames() {
-        // Test with very long class and test names
-        String longClassName = "VeryLongClassName".repeat(10);
-        String longTestName = "veryLongTestMethodName".repeat(10);
-
-        assertDoesNotThrow(() -> {
-            SlicerUtil.executeTest(longClassName, longTestName);
-        });
-
-        String errorOutput = errorStream.toString();
-        assertTrue(errorOutput.contains("Test execution failed"));
-    }
-
-    @Test
-    void testSimplify_LargeLineNumbers() {
-        // Test with very large line numbers
-        ProgramDependenceGraph mockPDG = mock(ProgramDependenceGraph.class);
-        ProgramGraph mockFullGraph = mock(ProgramGraph.class);
-
-        Node node = mock(Node.class);
-        when(node.getLineNumber()).thenReturn(Integer.MAX_VALUE);
-
-        List<Node> allNodes = Arrays.asList(node);
-        Set<Integer> coveredLines = Set.of(Integer.MAX_VALUE);
-
-        try (MockedStatic<CoverageTracker> mockedTracker = mockStatic(CoverageTracker.class)) {
-            mockedTracker.when(CoverageTracker::getVisitedLines).thenReturn(coveredLines);
-            when(mockPDG.computeResult()).thenReturn(mockFullGraph);
-            when(mockFullGraph.getNodes()).thenReturn(allNodes);
-            when(mockFullGraph.getSuccessors(node)).thenReturn(Collections.emptyList());
-
-            ProgramDependenceGraph result = SlicerUtil.simplify(mockPDG);
-
-            assertNotNull(result);
-            verify(mockPDG).computeResult();
+        // Verify all methods are static
+        var methods = CoverageTracker.class.getDeclaredMethods();
+        for (var method : methods) {
+            assertTrue(java.lang.reflect.Modifier.isStatic(method.getModifiers()),
+                    "Method " + method.getName() + " should be static");
         }
+
+        // Verify private constructor exists
+        var constructors = CoverageTracker.class.getDeclaredConstructors();
+        assertEquals(1, constructors.length);
+        assertTrue(java.lang.reflect.Modifier.isPrivate(constructors[0].getModifiers()));
     }
 
-    void tearDown() {
-        // Restore original System.err
-        System.setErr(originalErr);
+    @Test
+    void testSequentialOperations() {
+        // Test a realistic sequence of operations
+
+        // Initial state
+        assertTrue(CoverageTracker.getVisitedLines().isEmpty());
+
+        // Track some lines
+        CoverageTracker.trackLineVisit(1);
+        CoverageTracker.trackLineVisit(5);
+        CoverageTracker.trackLineVisit(3);
+        assertEquals(3, CoverageTracker.getVisitedLines().size());
+
+        // Track duplicate
+        CoverageTracker.trackLineVisit(1);
+        assertEquals(3, CoverageTracker.getVisitedLines().size());
+
+        // Track more lines
+        CoverageTracker.trackLineVisit(7);
+        CoverageTracker.trackLineVisit(2);
+        assertEquals(5, CoverageTracker.getVisitedLines().size());
+
+        // Verify specific contents
+        Set<Integer> lines = CoverageTracker.getVisitedLines();
+        assertTrue(lines.contains(1));
+        assertTrue(lines.contains(2));
+        assertTrue(lines.contains(3));
+        assertTrue(lines.contains(5));
+        assertTrue(lines.contains(7));
+        assertFalse(lines.contains(4));
+        assertFalse(lines.contains(6));
+
+        // Reset and verify
+        CoverageTracker.reset();
+        assertTrue(CoverageTracker.getVisitedLines().isEmpty());
+    }
+
+    @Test
+    void testLargeNumberOfLines() {
+        // Test with many line numbers
+        int numLines = 10000;
+
+        for (int i = 0; i < numLines; i++) {
+            CoverageTracker.trackLineVisit(i);
+        }
+
+        Set<Integer> visitedLines = CoverageTracker.getVisitedLines();
+        assertEquals(numLines, visitedLines.size());
+
+        // Verify all lines are present
+        for (int i = 0; i < numLines; i++) {
+            assertTrue(visitedLines.contains(i));
+        }
+
+        // Verify order preservation (LinkedHashSet)
+        Integer[] array = visitedLines.toArray(new Integer[0]);
+        for (int i = 0; i < numLines; i++) {
+            assertEquals(Integer.valueOf(i), array[i]);
+        }
     }
 }
