@@ -47,3 +47,6 @@ public class LineCoverageTransformer implements ClassFileTransformer {
     return !pClassName.startsWith(instrumentationTarget) || pClassName.endsWith("Test");
   }
 }
+
+
+
